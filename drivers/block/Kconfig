@@ -468,4 +468,14 @@ config BLK_DEV_RSXX
 	  To compile this driver as a module, choose M here: the
 	  module will be called rsxx.
 
+config HELLO_MODULE
+	tristate "My custom kernel module!"
+	help
+	  My hello module which should never make it to a real kernel
+
+config PARAMTEST
+	tristate "Param testing module, takes message as input"
+	help
+	  Testing if it works from the block directory
+
 endif # BLK_DEV
