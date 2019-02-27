@@ -35,12 +35,7 @@
 
 /* sysctl */
 #define MT7621_CHIP_REV_ID		0x0c
-#define RALINK_CLKCFG1			0x30
-#define RALINK_RSTCTRL			0x34
 #define CHIP_REV_MT7621_E2		0x0101
-
-/* RALINK_RSTCTRL bits */
-#define RALINK_PCIE_RST			BIT(23)
 
 /* MediaTek specific configuration registers */
 #define PCIE_FTS_NUM			0x70c
@@ -93,7 +88,6 @@
 #define PCIE_CLK_GEN_DIS		0
 #define PCIE_CLK_GEN1_DIS		GENMASK(30, 24)
 #define PCIE_CLK_GEN1_EN		(BIT(27) | BIT(25))
-#define RALINK_PCI_IO_MAP_BASE		0x1e160000
 #define MEMORY_BASE			0x0
 
 /**
@@ -125,6 +119,7 @@ struct mt7621_pcie_port {
  * @offset: IO / Memory offset
  * @dev: Pointer to PCIe device
  * @ports: pointer to PCIe port information
+ * @rst: pointer to pcie reset
  */
 struct mt7621_pcie {
 	void __iomem *base;
@@ -137,6 +132,7 @@ struct mt7621_pcie {
 		resource_size_t io;
 	} offset;
 	struct list_head ports;
+	struct reset_control *rst;
 };
 
 static inline u32 pcie_read(struct mt7621_pcie *pcie, u32 reg)
@@ -358,6 +354,12 @@ static int mt7621_pcie_parse_dt(struct mt7621_pcie *pcie)
 	if (IS_ERR(pcie->base))
 		return PTR_ERR(pcie->base);
 
+	pcie->rst = devm_reset_control_get_exclusive(dev, "pcie");
+	if (PTR_ERR(pcie->rst) == -EPROBE_DEFER) {
+		dev_err(dev, "failed to get pcie reset control\n");
+		return PTR_ERR(pcie->rst);
+	}
+
 	for_each_available_child_of_node(node, child) {
 		int slot;
 
@@ -442,13 +444,13 @@ static void mt7621_pcie_init_ports(struct mt7621_pcie *pcie)
 		}
 	}
 
-	rt_sysc_m32(0, RALINK_PCIE_RST, RALINK_RSTCTRL);
+	reset_control_assert(pcie->rst);
 	rt_sysc_m32(0x30, 2 << 4, SYSC_REG_SYSTEM_CONFIG1);
 	rt_sysc_m32(PCIE_CLK_GEN_EN, PCIE_CLK_GEN_DIS, RALINK_PCIE_CLK_GEN);
 	rt_sysc_m32(PCIE_CLK_GEN1_DIS, PCIE_CLK_GEN1_EN, RALINK_PCIE_CLK_GEN1);
 	rt_sysc_m32(PCIE_CLK_GEN_DIS, PCIE_CLK_GEN_EN, RALINK_PCIE_CLK_GEN);
 	msleep(50);
-	rt_sysc_m32(RALINK_PCIE_RST, 0, RALINK_RSTCTRL);
+	reset_control_deassert(pcie->rst);
 }
 
 static int mt7621_pcie_enable_port(struct mt7621_pcie_port *port)
@@ -504,7 +506,7 @@ static void mt7621_pcie_enable_ports(struct mt7621_pcie *pcie)
 
 	list_for_each_entry(port, &pcie->ports, list) {
 		if (port->enabled) {
-			if (!mt7621_pcie_enable_port(port)) {
+			if (mt7621_pcie_enable_port(port)) {
 				dev_err(dev, "de-assert port %d PERST_N\n",
 					port->slot);
 				continue;
@@ -543,15 +545,15 @@ static int mt7621_pcie_init_virtual_bridges(struct mt7621_pcie *pcie)
 		return -1;
 
 	/*
-	 * pcie(2/1/0) link status pcie2_num	pcie1_num	pcie0_num
-	 * 3'b000		   x	        x		x
-	 * 3'b001		   x	        x		0
-	 * 3'b010		   x	        0		x
-	 * 3'b011		   x	        1		0
-	 * 3'b100		   0	        x		x
-	 * 3'b101	           1 	        x		0
-	 * 3'b110	           1	        0		x
-	 * 3'b111		   2	        1		0
+	 * pcie(2/1/0) link status	pcie2_num	pcie1_num	pcie0_num
+	 * 3'b000			x		x		x
+	 * 3'b001			x		x		0
+	 * 3'b010			x		0		x
+	 * 3'b011			x		1		0
+	 * 3'b100			0		x		x
+	 * 3'b101			1		x		0
+	 * 3'b110			1		0		x
+	 * 3'b111			2		1		0
 	 */
 	switch (pcie_link_status) {
 	case 2:
@@ -662,9 +664,6 @@ static int mt7621_pci_probe(struct platform_device *pdev)
 		dev_err(dev, "Nothing is connected in virtual bridges. Exiting...");
 		return 0;
 	}
-
-	pcie_write(pcie, 0xffffffff, RALINK_PCI_MEMBASE);
-	pcie_write(pcie, RALINK_PCI_IO_MAP_BASE, RALINK_PCI_IOBASE);
 
 	mt7621_pcie_enable_ports(pcie);
 

@@ -420,8 +420,8 @@
 
 		status = "disabled";
 
-		resets = <&rstctrl 24 &rstctrl 25 &rstctrl 26>;
-		reset-names = "pcie0", "pcie1", "pcie2";
+		resets = <&rstctrl 23 &rstctrl 24 &rstctrl 25 &rstctrl 26>;
+		reset-names = "pcie", "pcie0", "pcie1", "pcie2";
 		clocks = <&clkctrl 24 &clkctrl 25 &clkctrl 26>;
 		clock-names = "pcie0", "pcie1", "pcie2";
 		phys = <&pcie0_port>, <&pcie1_port>, <&pcie2_port>;
@@ -452,9 +452,9 @@
 		};
 	};
 
-	pcie0_phy: pcie-phy@1a149000 {
+	pcie0_phy: pcie-phy@1e149000 {
 		compatible = "mediatek,mt7621-pci-phy";
-		reg = <0x1a149000 0x0700>;
+		reg = <0x1e149000 0x0700>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 
@@ -469,9 +469,9 @@
 		};
 	};
 
-	pcie1_phy: pcie-phy@1a14a000 {
+	pcie1_phy: pcie-phy@1e14a000 {
 		compatible = "mediatek,mt7621-pci-phy";
-		reg = <0x1a14a000 0x0700>;
+		reg = <0x1e14a000 0x0700>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 
