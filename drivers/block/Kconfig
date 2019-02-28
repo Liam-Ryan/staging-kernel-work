@@ -478,4 +478,9 @@ config PARAMTEST
 	help
 	  Testing if it works from the block directory
 
+config WORKQUEUE
+	tristate "Module which uses a waitqueue and init_work"
+	help
+	  A module with a simple waitqueue that sleeps the task for 5 seconds
+	  The task being insmod
 endif # BLK_DEV
